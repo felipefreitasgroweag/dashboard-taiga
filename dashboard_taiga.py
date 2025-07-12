@@ -1,3 +1,21 @@
+Você está certíssimo, peço desculpas\! Na última alteração, ao adicionar os novos filtros de Prioridade e Tags, eu acidentalmente removi o de Status. Foi uma falha minha.
+
+Vamos corrigir isso agora mesmo, restaurando o filtro de Status e mantendo todas as outras funcionalidades.
+
+-----
+
+### **Correção: Reintroduzindo o Filtro de Status**
+
+Adicionei de volta o filtro de Status ao painel da barra lateral. Agora você terá a lista completa de filtros para fazer suas análises.
+
+**Instruções:**
+Como sempre, a maneira mais segura é substituir todo o código do seu arquivo `dashboard_taiga.py` no GitHub pela versão completa e corrigida abaixo.
+
+-----
+
+### **Código Final com Todos os Filtros Restaurados**
+
+```python
 import streamlit as st
 import pandas as pd
 import requests
@@ -186,14 +204,19 @@ def main():
     # --- PAINEL DE FILTROS APRIMORADO ---
     st.sidebar.header("Filtros de Visualização")
     
-    # <<< AQUI ESTÁ O FILTRO POR RESPONSÁVEL >>>
-    # 1. Cria a lista de todos os responsáveis possíveis
+    # Filtro por Responsável
     assignee_list = sorted(list(set(
         (item.get('assigned_to_extra_info') or {}).get('full_name_display', 'Não atribuído')
         for item in all_items_unfiltered
     )))
-    # 2. Cria o widget de seleção múltipla na barra lateral
     selected_assignees = st.sidebar.multiselect("Responsável:", options=assignee_list, placeholder="Selecione um ou mais responsáveis")
+
+    # <<< FILTRO DE STATUS ADICIONADO DE VOLTA >>>
+    status_list = sorted(list(set(
+        (item.get('status_extra_info') or {}).get('name', 'N/A')
+        for item in all_items_unfiltered
+    )))
+    selected_statuses = st.sidebar.multiselect("Status:", options=status_list, placeholder="Selecione um ou mais status")
 
     # Filtro por Prioridade
     priority_list = sorted(list(set(
@@ -214,11 +237,13 @@ def main():
     
     # --- LÓGICA DE FILTRAGEM ---
     filtered_items = all_items_unfiltered
-    
-    # <<< AQUI O FILTRO POR RESPONSÁVEL É APLICADO AOS DADOS >>>
     if selected_assignees:
         filtered_items = [item for item in filtered_items if (item.get('assigned_to_extra_info') or {}).get('full_name_display', 'Não atribuído') in selected_assignees]
     
+    # <<< LÓGICA DO FILTRO DE STATUS ADICIONADA DE VOLTA >>>
+    if selected_statuses:
+        filtered_items = [item for item in filtered_items if (item.get('status_extra_info') or {}).get('name', 'N/A') in selected_statuses]
+        
     if selected_priorities:
         filtered_items = [item for item in filtered_items if (item.get('priority_extra_info') or {}).get('name', 'N/A') in selected_priorities]
     if selected_tags:
@@ -273,3 +298,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
