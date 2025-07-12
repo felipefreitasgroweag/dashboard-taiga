@@ -345,7 +345,7 @@ def main():
         taiga_url = st.secrets.get("TAIGA_URL", "https://api.taiga.io")
         username = st.secrets["TAIGA_USERNAME"]
         password = st.secrets["TAIGA_PASSWORD"]
-        project_id = st.secrets["TAIGA_PROJECT_ID"]
+        project_id = str(st.secrets["TAIGA_PROJECT_ID"])
         
         # Debug das credenciais (sem mostrar a senha)
         st.sidebar.write("🔧 **Debug Info:**")
