@@ -38,9 +38,10 @@ class TaigaAPI:
             return False
     
     def get_project_data(self, project_id):
+        # CORREÇÃO: Voltamos a buscar pelo ID numérico diretamente
         project_id = str(project_id)
         try:
-            url = f"{self.base_url}/api/v1/projects/by_slug?slug={project_id}"
+            url = f"{self.base_url}/api/v1/projects/{project_id}"
             response = requests.get(url, headers=self.headers, timeout=15)
             if response.status_code == 200:
                 return response.json()
@@ -69,30 +70,34 @@ class TaigaAPI:
         return results
 
     def get_user_stories(self, project_id):
+        # CORREÇÃO: Parâmetro voltou a ser "project"
         url = f"{self.base_url}/api/v1/userstories"
-        params = {"project__slug": project_id}
+        params = {"project": project_id}
         return self._get_paginated_data(url, params)
         
     def get_tasks(self, project_id):
+        # CORREÇÃO: Parâmetro voltou a ser "project"
         url = f"{self.base_url}/api/v1/tasks"
-        params = {"project__slug": project_id}
+        params = {"project": project_id}
         return self._get_paginated_data(url, params)
         
     def get_issues(self, project_id):
+        # CORREÇÃO: Parâmetro voltou a ser "project"
         url = f"{self.base_url}/api/v1/issues"
-        params = {"project__slug": project_id}
+        params = {"project": project_id}
         return self._get_paginated_data(url, params)
 
     def get_milestones(self, project_id):
+        # CORREÇÃO: Parâmetro voltou a ser "project"
         url = f"{self.base_url}/api/v1/milestones"
-        params = {"project__slug": project_id}
+        params = {"project": project_id}
         return self._get_paginated_data(url, params)
 
     def get_item_history(self, item_id, item_type):
         # item_type deve ser 'userstory', 'task', ou 'issue'
         url = f"{self.base_url}/api/v1/history/{item_type}/{item_id}"
         try:
-            response = requests.get(url, headers=self.headers, params={"project__slug": project_id})
+            response = requests.get(url, headers=self.headers)
             if response.status_code == 200:
                 return response.json()
         except requests.exceptions.RequestException:
