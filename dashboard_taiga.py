@@ -1,21 +1,3 @@
-Você está certíssimo, peço desculpas\! Na última alteração, ao adicionar os novos filtros de Prioridade e Tags, eu acidentalmente removi o de Status. Foi uma falha minha.
-
-Vamos corrigir isso agora mesmo, restaurando o filtro de Status e mantendo todas as outras funcionalidades.
-
------
-
-### **Correção: Reintroduzindo o Filtro de Status**
-
-Adicionei de volta o filtro de Status ao painel da barra lateral. Agora você terá a lista completa de filtros para fazer suas análises.
-
-**Instruções:**
-Como sempre, a maneira mais segura é substituir todo o código do seu arquivo `dashboard_taiga.py` no GitHub pela versão completa e corrigida abaixo.
-
------
-
-### **Código Final com Todos os Filtros Restaurados**
-
-```python
 import streamlit as st
 import pandas as pd
 import requests
@@ -298,4 +280,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
