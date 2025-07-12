@@ -97,6 +97,7 @@ class TaigaAPI:
         return self._get_paginated_data(url, params)
 
 # --- Funções de Cálculo ---
+# --- Funções de Cálculo ---
 def calculate_metrics(user_stories, tasks, issues):
     metrics = {}
     
@@ -119,6 +120,55 @@ def calculate_metrics(user_stories, tasks, issues):
     metrics['user_stories_by_status'] = get_status_counts(user_stories)
     metrics['tasks_by_status'] = get_status_counts(tasks)
     metrics['issues_by_status'] = get_status_counts(issues)
+    
+    wip_items = [item for item in all_items if item.get('status_extra_info', {}).get('name') in WIP_STATUSES]
+    metrics['wip_by_status'] = get_status_counts(wip_items)
+    metrics['total_wip'] = len(wip_items)
+
+    aging_tasks = []
+    for item in all_items:
+        if not item.get('is_closed', False):
+            modified_date = parse(item['modified_date'])
+            age = (datetime.now(timezone.utc) - modified_date).days
+            
+            # AQUI ESTÁ A CORREÇÃO FINAL
+            # Primeiro, pegamos o dicionário do responsável de forma segura
+            assignee_info = item.get('assigned_to_extra_info') or {}
+            # Agora, pegamos o nome a partir do dicionário (que pode estar vazio)
+            assignee_name = assignee_info.get('full_name_display', 'Não atribuído')
+
+            aging_tasks.append({
+                "Tarefa": item['subject'],
+                "Status Atual": item.get('status_extra_info', {}).get('name', 'N/A'),
+                "Dias Parada": age,
+                "Responsável": assignee_name
+            })
+            
+    metrics['aging_tasks'] = sorted(aging_tasks, key=lambda x: x['Dias Parada'], reverse=True)
+    
+    cycle_times = []
+    for item in all_items:
+        if item.get('created_date') and item.get('finished_date'):
+            try:
+                cycle_time = (parse(item['finished_date']) - parse(item['created_date'])).days
+                if cycle_time >= 0:
+                    cycle_times.append(cycle_time)
+            except (TypeError, ValueError):
+                continue
+    metrics['cycle_times'] = cycle_times
+
+    completed_items = [item for item in all_items if item.get('is_closed') and item.get('finished_date')]
+    if completed_items:
+        first_finish_date_obj = parse(completed_items[0]['finished_date'])
+        timezone_info = first_finish_date_obj.tzinfo
+        one_week_ago = datetime.now(timezone_info) - timedelta(days=7)
+        
+        recent_completions = [item for item in completed_items if parse(item['finished_date']) >= one_week_ago]
+        metrics['throughput'] = len(recent_completions)
+    else:
+        metrics['throughput'] = 0
+        
+    return metrics
     
     # NOVA MÉTRICA: WIP por status
     wip_items = [item for item in all_items if item.get('status_extra_info', {}).get('name') in WIP_STATUSES]
