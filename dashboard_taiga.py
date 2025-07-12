@@ -45,7 +45,6 @@ class TaigaAPI:
             return False
     
     def get_project_data(self, project_id):
-        # GARANTE QUE O ID SEJA TEXTO
         project_id = str(project_id)
         try:
             url = f"{self.base_url}/api/v1/projects/{project_id}"
@@ -63,7 +62,6 @@ class TaigaAPI:
             return None
     
     def _get_paginated_data(self, url, params):
-        """Função auxiliar para buscar dados paginados da API."""
         results = []
         page = 1
         while True:
@@ -75,28 +73,24 @@ class TaigaAPI:
             if not data:
                 break
             results.extend(data)
-            # Verifica se há uma próxima página no header 'x-pagination-next'
             if 'x-pagination-next' not in response.headers or not response.headers['x-pagination-next']:
                  break
             page += 1
         return results
 
     def get_user_stories(self, project_id):
-        # GARANTE QUE O ID SEJA TEXTO
         project_id = str(project_id)
         url = f"{self.base_url}/api/v1/userstories"
         params = {"project": project_id}
         return self._get_paginated_data(url, params)
         
     def get_tasks(self, project_id):
-        # GARANTE QUE O ID SEJA TEXTO
         project_id = str(project_id)
         url = f"{self.base_url}/api/v1/tasks"
         params = {"project": project_id}
         return self._get_paginated_data(url, params)
         
     def get_issues(self, project_id):
-        # GARANTE QUE O ID SEJA TEXTO
         project_id = str(project_id)
         url = f"{self.base_url}/api/v1/issues"
         params = {"project": project_id}
@@ -135,7 +129,14 @@ def calculate_metrics(user_stories, tasks, issues):
 
     completed_items = [item for item in all_items if item.get('is_closed') and item.get('finished_date')]
     if completed_items:
-        one_week_ago = datetime.now(completed_items[0]['finished_date'].tzinfo) - timedelta(days=7)
+        # CORREÇÃO APLICADA AQUI
+        # 1. Converte a primeira data de finalização para um objeto de data/hora
+        first_finish_date_obj = parse(completed_items[0]['finished_date'])
+        # 2. Pega o fuso horário (timezone) deste objeto
+        timezone_info = first_finish_date_obj.tzinfo
+        # 3. Usa o fuso horário para criar a data de "agora" corretamente
+        one_week_ago = datetime.now(timezone_info) - timedelta(days=7)
+        
         recent_completions = [item for item in completed_items if parse(item['finished_date']) >= one_week_ago]
         metrics['throughput'] = len(recent_completions)
     else:
@@ -144,13 +145,12 @@ def calculate_metrics(user_stories, tasks, issues):
     return metrics
 
 # --- Função Principal de Cache e Fetch ---
-@st.cache_data(ttl=300) # Cache por 5 minutos
+@st.cache_data(ttl=300)
 def get_taiga_data(base_url, username, password, project_id):
     api = TaigaAPI(base_url, username, password)
     if not api.authenticate():
         return None
     
-    # GARANTE QUE O ID SEJA TEXTO ao passar para as funções
     project_id_str = str(project_id)
     
     project_data = api.get_project_data(project_id_str)
@@ -178,7 +178,7 @@ def main():
         taiga_url = st.secrets.get("TAIGA_URL", "https://api.taiga.io")
         username = st.secrets["TAIGA_USERNAME"]
         password = st.secrets["TAIGA_PASSWORD"]
-        project_id = str(st.secrets["TAIGA_PROJECT_ID"]) # Conversão inicial
+        project_id = str(st.secrets["TAIGA_PROJECT_ID"])
         
         st.sidebar.write("🔧 **Debug Info:**")
         st.sidebar.write(f"URL: {taiga_url}")
@@ -215,7 +215,7 @@ def main():
         st.subheader("📊 User Stories por Status")
         us_status_data = metrics.get('user_stories_by_status', {})
         if us_status_data:
-            fig = px.pie(values=us_status_data.values(), names=us_status_data.keys())
+            fig = px.pie(values=list(us_status_data.values()), names=list(us_status_data.keys()))
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.write("Nenhuma User Story encontrada.")
