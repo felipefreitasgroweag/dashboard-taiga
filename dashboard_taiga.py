@@ -253,15 +253,18 @@ def main():
         fig = px.bar(x=list(by_status.keys()), y=list(by_status.values()), labels={'x':'Status', 'y':'# de Itens'}, text=list(by_status.values()))
         st.plotly_chart(fig, use_container_width=True)
 
-    # --- SEÇÃO SAÚDE DO FLUXO ---
-    st.markdown("---")
-    st.header("❤️‍🩹 Saúde do Fluxo")
-    aging_data = metrics.get('aging_tasks', [])
-    if aging_data:
-        st.subheader("Envelhecimento de Itens em Aberto (Top 10)")
-        st.dataframe(pd.DataFrame(aging_data).head(10), use_container_width=True, hide_index=True, column_config={"Ref": st.column_config.NumberColumn(format="%d")})
-    else:
-        st.info("Nenhum item em aberto para analisar (conforme filtros aplicados).")
+# --- SEÇÃO SAÚDE DO FLUXO ---
+st.markdown("---")
+st.header("❤️‍🩹 Saúde do Fluxo")
+aging_data = metrics.get('aging_tasks', [])
+if aging_data:
+    # Título atualizado para refletir a mudança
+    st.subheader("Envelhecimento de Itens em Aberto (Top 200)")
+    
+    # Alterado de .head(10) para .head(200)
+    st.dataframe(pd.DataFrame(aging_data).head(200), use_container_width=True, hide_index=True, column_config={"Ref": st.column_config.NumberColumn(format="%d")})
+else:
+    st.info("Nenhum item em aberto para analisar (conforme filtros aplicados).")
     
     # --- SEÇÃO QUALIDADE ---
     st.markdown("---")
