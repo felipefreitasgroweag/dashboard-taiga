@@ -8,8 +8,8 @@ from collections import defaultdict
 
 # --- Configuração da Página ---
 st.set_page_config(
-    page_title="Dashboard Taiga Avançado",
-    page_icon="🚀",
+    page_title="Dashboard Taiga Completo",
+    page_icon="🏆",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -89,19 +89,20 @@ def calculate_metrics(all_items, issues):
     WIP_STATUSES = ["Em Progresso", "Em Desenvolvimento", "Fazendo", "In Progress", "Doing", "Em Revisão", "Review"]
     CLOSED_STATUSES = ["Concluído", "Done", "Fechado", "Closed", "Arquivado", "Archived"]
     
-    def get_status_counts(items):
-        status_counts = defaultdict(int)
-        for item in items:
-            status = item.get('status_extra_info', {}).get('name', 'N/A')
-            status_counts[status] += 1
-        return dict(status_counts)
-
-    metrics['status_counts'] = get_status_counts(all_items)
+    # --- Contagens por Dimensão ---
+    metrics['by_status'] = defaultdict(int)
+    metrics['by_assignee'] = defaultdict(int)
+    metrics['by_priority'] = defaultdict(int)
     
+    for item in all_items:
+        metrics['by_status'][item.get('status_extra_info', {}).get('name', 'N/A')] += 1
+        metrics['by_assignee'][(item.get('assigned_to_extra_info') or {}).get('full_name_display', 'Não atribuído')] += 1
+        metrics['by_priority'][(item.get('priority_extra_info') or {}).get('name', 'N/A')] += 1
+        
+    # --- Métricas de Fluxo ---
     wip_items = [item for item in all_items if item.get('status_extra_info', {}).get('name') in WIP_STATUSES]
-    metrics['wip_by_status'] = get_status_counts(wip_items)
     metrics['total_wip'] = len(wip_items)
-
+    
     aging_tasks = []
     for item in all_items:
         if not item.get('is_closed', False) and item.get('status_extra_info', {}).get('name') not in CLOSED_STATUSES:
@@ -118,12 +119,20 @@ def calculate_metrics(all_items, issues):
             })
     metrics['aging_tasks'] = sorted(aging_tasks, key=lambda x: x['Dias Parada'], reverse=True)
     
+    # --- Métricas de Qualidade (Issues) ---
     metrics['issues_by_type'] = defaultdict(int)
-    metrics['issues_by_severity'] = defaultdict(int)
     for issue in issues:
         metrics['issues_by_type'][issue.get('type_extra_info', {}).get('name', 'N/A')] += 1
-        metrics['issues_by_severity'][issue.get('severity_extra_info', {}).get('name', 'N/A')] += 1
 
+    # --- Métrica de Throughput (Velocidade) ---
+    completed_items = [item for item in all_items if item.get('is_closed') and item.get('finished_date')]
+    if completed_items:
+        one_week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        recent_completions = [item for item in completed_items if parse(item['finished_date']) >= one_week_ago]
+        metrics['throughput'] = len(recent_completions)
+    else:
+        metrics['throughput'] = 0
+        
     return metrics
 
 # --- Função Principal de Cache e Fetch ---
@@ -155,7 +164,7 @@ def get_taiga_data(base_url, username, password, project_id):
 
 # --- Interface do Usuário ---
 def main():
-    st.title("🚀 Dashboard Taiga")
+    st.title("🏆 Dashboard Taiga Completo")
     
     try:
         taiga_url = st.secrets.get("TAIGA_URL", "https://api.taiga.io")
@@ -172,7 +181,6 @@ def main():
 
     project_data = data.get('project_data')
     st.header(f"Projeto: {project_data.get('name', 'N/A')}")
-    st.markdown("---")
     
     user_stories = data.get('user_stories', [])
     tasks = data.get('tasks', [])
@@ -183,37 +191,16 @@ def main():
     for issue in issues: issue['item_type'] = 'Issue'
     all_items_unfiltered = user_stories + tasks + issues
 
-    # --- PAINEL DE FILTROS APRIMORADO ---
+    # --- PAINEL DE FILTROS ---
     st.sidebar.header("Filtros de Visualização")
-    
-    # Filtro por Responsável
-    assignee_list = sorted(list(set(
-        (item.get('assigned_to_extra_info') or {}).get('full_name_display', 'Não atribuído')
-        for item in all_items_unfiltered
-    )))
-    selected_assignees = st.sidebar.multiselect("Responsável:", options=assignee_list, placeholder="Selecione um ou mais responsáveis")
-
-    # <<< FILTRO DE STATUS ADICIONADO DE VOLTA >>>
-    status_list = sorted(list(set(
-        (item.get('status_extra_info') or {}).get('name', 'N/A')
-        for item in all_items_unfiltered
-    )))
-    selected_statuses = st.sidebar.multiselect("Status:", options=status_list, placeholder="Selecione um ou mais status")
-
-    # Filtro por Prioridade
-    priority_list = sorted(list(set(
-        (item.get('priority_extra_info') or {}).get('name', 'N/A')
-        for item in all_items_unfiltered
-    )))
-    selected_priorities = st.sidebar.multiselect("Prioridade:", options=priority_list, placeholder="Selecione uma ou mais prioridades")
-    
-    # Filtro por Tags
-    all_tags = sorted(list(set(
-        tag[0] for item in all_items_unfiltered if item.get('tags') for tag in item['tags']
-    )))
-    selected_tags = st.sidebar.multiselect("Tags:", options=all_tags, placeholder="Selecione uma ou mais tags")
-
-    # Filtros Booleanos (checkbox)
+    assignee_list = sorted([name for name in set((item.get('assigned_to_extra_info') or {}).get('full_name_display', 'Não atribuído') for item in all_items_unfiltered) if name != 'Não atribuído'])
+    selected_assignees = st.sidebar.multiselect("Responsável:", options=assignee_list)
+    status_list = sorted(list(set((item.get('status_extra_info') or {}).get('name', 'N/A') for item in all_items_unfiltered)))
+    selected_statuses = st.sidebar.multiselect("Status:", options=status_list)
+    priority_list = sorted(list(set((item.get('priority_extra_info') or {}).get('name', 'N/A') for item in all_items_unfiltered)))
+    selected_priorities = st.sidebar.multiselect("Prioridade:", options=priority_list)
+    all_tags = sorted(list(set(tag[0] for item in all_items_unfiltered if item.get('tags') for tag in item['tags'])))
+    selected_tags = st.sidebar.multiselect("Tags:", options=all_tags)
     is_blocked = st.sidebar.checkbox("Mostrar apenas itens bloqueados")
     is_unassigned = st.sidebar.checkbox("Mostrar apenas itens não atribuídos")
     
@@ -221,11 +208,8 @@ def main():
     filtered_items = all_items_unfiltered
     if selected_assignees:
         filtered_items = [item for item in filtered_items if (item.get('assigned_to_extra_info') or {}).get('full_name_display', 'Não atribuído') in selected_assignees]
-    
-    # <<< LÓGICA DO FILTRO DE STATUS ADICIONADA DE VOLTA >>>
     if selected_statuses:
         filtered_items = [item for item in filtered_items if (item.get('status_extra_info') or {}).get('name', 'N/A') in selected_statuses]
-        
     if selected_priorities:
         filtered_items = [item for item in filtered_items if (item.get('priority_extra_info') or {}).get('name', 'N/A') in selected_priorities]
     if selected_tags:
@@ -238,42 +222,55 @@ def main():
     filtered_issues = [item for item in filtered_items if item['item_type'] == 'Issue']
     metrics = calculate_metrics(filtered_items, filtered_issues)
 
-    # --- SEÇÃO SAÚDE DO FLUXO ---
-    st.header("❤️‍🩹 Saúde do Fluxo")
-    col1, col2 = st.columns([1,2])
+    # --- EXIBIÇÃO DAS MÉTRICAS ---
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Itens Exibidos (pós-filtro)", len(filtered_items))
+    col2.metric("Itens em WIP", metrics.get('total_wip', 0))
+    col3.metric("Throughput (7 dias)", f"{metrics.get('throughput', 0)} itens")
+    
+    # --- SEÇÃO DE ANÁLISE GERAL (FEATURES INICIAIS RESTAURADAS) ---
+    st.markdown("---")
+    st.header("📊 Análise Geral")
+    col1, col2 = st.columns(2)
     with col1:
-        st.metric("Total de Itens em WIP", metrics.get('total_wip', 0))
-        wip_data = metrics.get('wip_by_status', {})
-        if wip_data:
-            fig_wip = px.bar(x=list(wip_data.values()), y=list(wip_data.keys()), orientation='h', labels={'x': '# Itens', 'y': 'Status'}, text=list(wip_data.values()))
-            fig_wip.update_layout(showlegend=False)
-            st.plotly_chart(fig_wip, use_container_width=True)
+        st.subheader("Distribuição por Responsável")
+        by_assignee = metrics.get('by_assignee', {})
+        if by_assignee:
+            fig = px.bar(y=list(by_assignee.keys()), x=list(by_assignee.values()), orientation='h', labels={'y': 'Responsável', 'x': '# de Itens'}, text=list(by_assignee.values()))
+            fig.update_layout(showlegend=False, yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
     with col2:
+        st.subheader("Distribuição por Prioridade")
+        by_priority = metrics.get('by_priority', {})
+        if by_priority:
+            fig = px.pie(values=list(by_priority.values()), names=list(by_priority.keys()), hole=0.3)
+            st.plotly_chart(fig, use_container_width=True)
+            
+    st.subheader("Distribuição por Status")
+    by_status = metrics.get('by_status', {})
+    if by_status:
+        fig = px.bar(x=list(by_status.keys()), y=list(by_status.values()), labels={'x':'Status', 'y':'# de Itens'}, text=list(by_status.values()))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # --- SEÇÃO SAÚDE DO FLUXO ---
+    st.markdown("---")
+    st.header("❤️‍🩹 Saúde do Fluxo")
+    aging_data = metrics.get('aging_tasks', [])
+    if aging_data:
         st.subheader("Envelhecimento de Itens em Aberto (Top 10)")
-        aging_data = metrics.get('aging_tasks', [])
-        if aging_data:
-            st.dataframe(pd.DataFrame(aging_data).head(10), use_container_width=True, hide_index=True, column_config={"Ref": st.column_config.NumberColumn(format="%d")})
-        else:
-            st.info("Nenhum item em aberto para analisar (conforme filtros aplicados).")
+        st.dataframe(pd.DataFrame(aging_data).head(10), use_container_width=True, hide_index=True, column_config={"Ref": st.column_config.NumberColumn(format="%d")})
+    else:
+        st.info("Nenhum item em aberto para analisar (conforme filtros aplicados).")
     
     # --- SEÇÃO QUALIDADE ---
     st.markdown("---")
     st.header("🎯 Qualidade do Projeto")
-    col1, col2 = st.columns([1, 1])
-    with col1:
+    issues_by_type = metrics.get('issues_by_type', {})
+    if issues_by_type:
         st.subheader("Issues por Tipo")
-        issues_by_type = metrics.get('issues_by_type', {})
-        if issues_by_type:
-            fig_type = px.pie(values=list(issues_by_type.values()), names=list(issues_by_type.keys()), hole=0.3)
-            st.plotly_chart(fig_type, use_container_width=True)
-        else:
-            st.info("Nenhuma issue encontrada (conforme filtros).")
-    with col2:
-        st.subheader("Issues por Severidade")
-        issues_by_severity = metrics.get('issues_by_severity', {})
-        if issues_by_severity:
-            fig_sev = px.bar(x=list(issues_by_severity.keys()), y=list(issues_by_severity.values()), labels={'x':'Severidade', 'y':'# Issues'}, text=list(issues_by_severity.values()))
-            st.plotly_chart(fig_sev, use_container_width=True)
+        fig_type = px.pie(values=list(issues_by_type.values()), names=list(issues_by_type.keys()))
+        st.plotly_chart(fig_type, use_container_width=True)
     
     st.markdown("---")
     st.markdown(f"**Atualizado em:** {data['last_update'].strftime('%d/%m/%Y às %H:%M:%S')}")
