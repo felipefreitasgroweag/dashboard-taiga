@@ -219,6 +219,94 @@ def main():
     if is_unassigned:
         filtered_items = [item for item in filtered_items if not item.get('assigned_to')]
 
+    # --- CÁLCULO DAS MÉTRICAS (DEPOIS DOS FILTROS) ---
+    filtered_issues = [item for item in filtered_items if item['item_type'] == 'Issue']
+    metrics = calculate_metrics(filtered_items, filtered_issues)
+
+    # --- EXIBIÇÃO DAS MÉTRICAS (AGORA COM A VARIÁVEL 'metrics' CRIADA) ---
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Itens Exibidos (pós-filtro)", len(filtered_items))
+    col2.metric("Itens em WIP", metrics.get('total_wip', 0))
+    col3.metric("Throughput (7 dias)", f"{metrics.get('throughput', 0)} itens")
+    
+    # --- SEÇÃO DE ANÁLISE GERAL ---
+    st.markdown("---")
+    st.header("📊 Análise Geral")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Distribuição por Responsável")
+        by_assignee = metrics.get('by_assignee', {})
+        if by_assignee:
+            fig = px.bar(y=list(by_assignee.keys()), x=list(by_assignee.values()), orientation='h', labels={'y': 'Responsável', 'x': '# de Itens'}, text=list(by_assignee.values()))
+            fig.update_layout(showlegend=False, yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig, use_container_width=True)
+    with col2:
+        st.subheader("Distribuição por Prioridade")
+        by_priority = metrics.get('by_priority', {})
+        if by_priority:
+            fig = px.pie(values=list(by_priority.values()), names=list(by_priority.keys()), hole=0.3)
+            st.plotly_chart(fig, use_container_width=True)
+            
+    st.subheader("Distribuição por Status")
+    by_status = metrics.get('by_status', {})
+    if by_status:
+        fig = px.bar(x=list(by_status.keys()), y=list(by_status.values()), labels={'x':'Status', 'y':'# de Itens'}, text=list(by_status.values()))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # --- SEÇÃO SAÚDE DO FLUXO (COM A CORREÇÃO PARA TOP 200) ---
+    st.markdown("---")
+    st.header("❤️‍🩹 Saúde do Fluxo")
+    aging_data = metrics.get('aging_tasks', [])
+    if aging_data:
+        st.subheader("Envelhecimento de Itens em Aberto (Top 200)")
+        st.dataframe(pd.DataFrame(aging_data).head(200), use_container_width=True, hide_index=True, column_config={"Ref": st.column_config.NumberColumn(format="%d")})
+    else:
+        st.info("Nenhum item em aberto para analisar (conforme filtros aplicados).")
+    
+    # --- SEÇÃO QUALIDADE ---
+    st.markdown("---")
+    st.header("🎯 Qualidade do Projeto")
+    issues_by_type = metrics.get('issues_by_type', {})
+    if issues_by_type:
+        st.subheader("Issues por Tipo")
+        fig_type = px.pie(values=list(issues_by_type.values()), names=list(issues_by_type.keys()))
+        st.plotly_chart(fig_type, use_container_width=True)
+    
+    st.markdown("---")
+    st.markdown(f"**Atualizado em:** {data['last_update'].strftime('%d/%m/%Y às %H:%M:%S')}")
+
+if __name__ == "__main__":
+    main()
+
+    # --- PAINEL DE FILTROS ---
+    st.sidebar.header("Filtros de Visualização")
+    assignee_list = sorted([name for name in set((item.get('assigned_to_extra_info') or {}).get('full_name_display', 'Não atribuído') for item in all_items_unfiltered) if name != 'Não atribuído'])
+    selected_assignees = st.sidebar.multiselect("Responsável:", options=assignee_list)
+    status_list = sorted(list(set((item.get('status_extra_info') or {}).get('name', 'N/A') for item in all_items_unfiltered)))
+    selected_statuses = st.sidebar.multiselect("Status:", options=status_list)
+    priority_list = sorted(list(set((item.get('priority_extra_info') or {}).get('name', 'N/A') for item in all_items_unfiltered)))
+    selected_priorities = st.sidebar.multiselect("Prioridade:", options=priority_list)
+    all_tags = sorted(list(set(tag[0] for item in all_items_unfiltered if item.get('tags') for tag in item['tags'])))
+    selected_tags = st.sidebar.multiselect("Tags:", options=all_tags)
+    is_blocked = st.sidebar.checkbox("Mostrar apenas itens bloqueados")
+    is_unassigned = st.sidebar.checkbox("Mostrar apenas itens não atribuídos")
+    
+    # --- LÓGICA DE FILTRAGEM ---
+    filtered_items = all_items_unfiltered
+    if selected_assignees:
+        filtered_items = [item for item in filtered_items if (item.get('assigned_to_extra_info') or {}).get('full_name_display', 'Não atribuído') in selected_assignees]
+    if selected_statuses:
+        filtered_items = [item for item in filtered_items if (item.get('status_extra_info') or {}).get('name', 'N/A') in selected_statuses]
+    if selected_priorities:
+        filtered_items = [item for item in filtered_items if (item.get('priority_extra_info') or {}).get('name', 'N/A') in selected_priorities]
+    if selected_tags:
+        filtered_items = [item for item in filtered_items if item.get('tags') and any(tag[0] in selected_tags for tag in item['tags'])]
+    if is_blocked:
+        filtered_items = [item for item in filtered_items if item.get('is_blocked')]
+    if is_unassigned:
+        filtered_items = [item for item in filtered_items if not item.get('assigned_to')]
+
     filtered_issues = [item for item in filtered_items if item['item_type'] == 'Issue']
     metrics = calculate_metrics(filtered_items, filtered_issues)
 
